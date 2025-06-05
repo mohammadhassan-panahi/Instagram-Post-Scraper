@@ -15,7 +15,7 @@
 1.  **پایتون ۳** ([python.org](https://www.python.org/downloads/))
 2.  **مرورگر Google Chrome**
 3.  **اتصال به اینترنت**
-4.  کتابخانه‌های پایتون: `selenium`, `webdriver-manager` (اسکریپت سعی در نصب خودکار `webdriver-manager` دارد).
+4.  کتابخانه‌های پایتون: `selenium`, `webdriver-manager` 
 
 ## نحوه اجرا
 
@@ -31,7 +31,6 @@
     ```bash
     python main.py 
     ```
-    (یا روی فایل EXE دابل کلیک کنید)
 
 3.  **وارد کردن URL صفحه اینستاگرام** درخواستی.
 
