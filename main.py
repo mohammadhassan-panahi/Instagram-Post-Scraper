@@ -1,37 +1,40 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 import time
 import os
+from pathlib import Path
+from webdriver_manager.chrome import ChromeDriverManager
 
 # ##############################################################################
-# ############## تنظیمات اسکریپت - این بخش را ویرایش کنید #################
+# ############## تنظیمات اسکریپت ##############################################
 # ##############################################################################
-# INSTAGRAM_PROFILE_URL = "https://www.instagram.com/mehrad.ux/" # این خط حذف یا کامنت می شود
-OUTPUT_FILE = r"D:\project\downloaders\insta_accunt_Scraper\instagram_post_links.txt"
-# اگر می‌خواهید فایل در همان پوشه اسکریپت ذخیره شود، این خط را جایگزین کنید:
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-# OUTPUT_FILE = os.path.join(SCRIPT_DIR, "instagram_post_links.txt")
 
+# ------ تغییر جدید برای ذخیره در دسکتاپ ------
+try:
+    # پیدا کردن مسیر دسکتاپ کاربر به صورت خودکار و مستقل از سیستم‌عامل
+    desktop_path = Path.home() / "Desktop"
+    OUTPUT_FILE_NAME = "instagram_post_links.txt"
+    OUTPUT_FILE = desktop_path / OUTPUT_FILE_NAME
+    # اطمینان از اینکه پوشه دسکتاپ وجود دارد (معمولاً وجود دارد، اما این کار برای اطمینان است)
+    desktop_path.mkdir(exist_ok=True)
+except Exception as e_path:
+    print(f"خطا در یافتن مسیر دسکتاپ: {e_path}")
+    print("فایل خروجی در کنار اسکریپت/فایل اجرایی ذخیره خواهد شد.")
+    # اگر به هر دلیلی مسیر دسکتاپ پیدا نشد، در کنار اسکریپت ذخیره کن
+    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+    OUTPUT_FILE_NAME = "instagram_post_links.txt"
+    OUTPUT_FILE = os.path.join(SCRIPT_DIR, OUTPUT_FILE_NAME)
 
-# مسیر کامل فایل اجرایی ChromeDriver
-CHROME_DRIVER_PATH = r"D:\project\downloaders\insta_accunt_Scraper\chromedriver-win64\chromedriver.exe"
-# مثال برای مک/لینوکس: CHROME_DRIVER_PATH = "/usr/local/bin/chromedriver"
-# اگر ChromeDriver در PATH سیستم شما قرار دارد، می‌توانید این مقدار را خالی بگذارید یا از `webdriver.Chrome()` بدون `service` استفاده کنید.
-# CHROME_DRIVER_PATH = r"مسیر کامل فایل chromedriver را اینجا وارد کنید"
-#CHROME_DRIVER_PATH = "" # اگر در PATH است، خالی بگذارید. در غیر این صورت مسیر کامل را بدهید.
+# ------------------------------------------------
 
-# مدت زمان انتظار (به ثانیه) برای بارگذاری عناصر صفحه
-# این مقدار را در صورت نیاز و بر اساس سرعت اینترنت خود تنظیم کنید
 WAIT_TIMEOUT = 15
-SCROLL_PAUSE_TIME = 8  # زمان بین اسکرول ها، می توانید کمی بیشتر کنید اگر لینک ها جا می مانند
+SCROLL_PAUSE_TIME = 6
 MAX_SCROLLS = None
 
-# XPATH ارائه شده توسط کاربر برای کانتینر اصلی پست‌ها
 USER_PROVIDED_POSTS_CONTAINER_XPATH = "//main//div[contains(@style,'flex-direction: column;')]"
 
 
@@ -42,7 +45,7 @@ USER_PROVIDED_POSTS_CONTAINER_XPATH = "//main//div[contains(@style,'flex-directi
 def get_links_via_javascript(driver, container_element):
     script = """
     let links = [];
-    if (!arguments[0]) return links; // اگر کانتینر وجود نداشت
+    if (!arguments[0]) return links; 
     let all_a_tags = arguments[0].getElementsByTagName('a');
     for (let i = 0; i < all_a_tags.length; i++) {
         if (all_a_tags[i].hasAttribute('href')) {
@@ -59,10 +62,10 @@ def get_links_via_javascript(driver, container_element):
         return []
 
 
-def get_post_links_from_profile(profile_url, output_file, driver_path, wait_timeout_general, scroll_pause_time,
-                                max_scrolls):
-    print(f"Starting process for page: {profile_url}")
-    print(f"Using posts container XPATH: {USER_PROVIDED_POSTS_CONTAINER_XPATH}")
+def get_post_links_from_profile(profile_url, output_file_path, wait_timeout_general, scroll_pause_time, max_scrolls):
+    print(f"شروع فرآیند برای صفحه: {profile_url}")
+    print(f"استفاده از XPATH کانتینر پست‌ها: {USER_PROVIDED_POSTS_CONTAINER_XPATH}")
+    print(f"لینک‌ها در فایل زیر ذخیره خواهند شد: {output_file_path}")
 
     chrome_options = webdriver.ChromeOptions()
     # chrome_options.add_argument("--headless")
@@ -71,17 +74,18 @@ def get_post_links_from_profile(profile_url, output_file, driver_path, wait_time
     chrome_options.add_argument("--lang=fa-IR,fa;q=0.9,en-US;q=0.8,en;q=0.7")
     chrome_options.add_argument(
         "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36")
+    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    chrome_options.add_experimental_option('useAutomationExtension', False)
 
-    driver = None  # تعریف اولیه
+    driver = None
     try:
-        if driver_path and os.path.exists(driver_path):
-            service = ChromeService(executable_path=driver_path)
-            driver = webdriver.Chrome(service=service, options=chrome_options)
-        else:
-            print("ChromeDriver path not specified or invalid. Trying to use ChromeDriver from PATH.")
-            driver = webdriver.Chrome(options=chrome_options)
+        print("در حال راه‌اندازی و نصب خودکار ChromeDriver در صورت نیاز...")
+        service = ChromeService(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+        print("ChromeDriver با موفقیت راه‌اندازی شد.")
     except Exception as e:
-        print(f"Error initializing ChromeDriver: {e}");
+        print(f"خطا در راه‌اندازی ChromeDriver با webdriver_manager: {e}")
+        print("لطفا از اتصال به اینترنت و عدم مسدود بودن دانلودها توسط آنتی‌ویروس اطمینان حاصل کنید.")
         return
 
     post_links_found = set()
@@ -89,7 +93,7 @@ def get_post_links_from_profile(profile_url, output_file, driver_path, wait_time
 
     try:
         driver.get(profile_url)
-        print("Page opened. Attempting to manage pop-ups and initial load...")
+        print("صفحه باز شد. تلاش برای مدیریت پاپ‌آپ‌ها و بارگذاری اولیه...")
         time.sleep(7)
 
         possible_popups_selectors = {
@@ -110,40 +114,39 @@ def get_post_links_from_profile(profile_url, output_file, driver_path, wait_time
         posts_container_element = None
         try:
             print(
-                f"Attempting to find posts container with XPATH: {USER_PROVIDED_POSTS_CONTAINER_XPATH} (before manual intervention)...")
+                f"تلاش برای یافتن کانتینر پست‌ها با XPATH: {USER_PROVIDED_POSTS_CONTAINER_XPATH} (قبل از دخالت دستی)...")
             posts_container_element = WebDriverWait(driver, wait_timeout_general).until(
                 EC.presence_of_element_located((By.XPATH, USER_PROVIDED_POSTS_CONTAINER_XPATH))
             )
-            print("Posts container found on initial load.")
+            print("کانتینر پست‌ها در بارگذاری اولیه پیدا شد.")
             hrefs_from_js_initial = get_links_via_javascript(driver, posts_container_element)
-            print(f"Raw links found by JS (initial load): {hrefs_from_js_initial}")
             for href in hrefs_from_js_initial:
                 if href and ("/p/" in href or "/reel/" in href):
                     full_link = href if href.startswith(
                         "https://www.instagram.com") else f"https://www.instagram.com{href if href.startswith('/') else '/' + href}"
                     if full_link not in post_links_found: post_links_found.add(full_link)
             if post_links_found: print(
-                f"{len(post_links_found)} valid initial links added from container (with JS and new filter).")
+                f"{len(post_links_found)} لینک معتبر اولیه از داخل کانتینر (با JS و فیلتر جدید) اضافه شد.")
         except TimeoutException:
-            print(f"Warning: Posts container with specified XPATH not found on initial page load.")
+            print(f"هشدار: کانتینر پست‌ها با XPATH مشخص شده در بارگذاری اولیه صفحه پیدا نشد.")
 
         if not post_links_found:
-            print("\n!!! ATTENTION: Script paused. !!!")
-            print("Please look at the opened browser window and take necessary actions (e.g., login).")
-            input("After manual review, press Enter to continue scrolling...")
-            print("Resuming script after manual intervention...")
-            print("Allowing time for page to fully load after login (30 seconds)...")
+            print("\n!!! توجه: اسکریپت متوقف شده است. !!!")
+            print("لطفا به پنجره مرورگر باز شده نگاه کنید و اقدامات لازم (مانند لاگین) را انجام دهید.")
+            input("پس از بررسی دستی و انجام لاگین، Enter را در این کنسول فشار دهید...")
+            print("ادامه کار اسکریپت پس از دخالت دستی...")
+            print("دادن زمان به صفحه برای بارگذاری کامل پس از لاگین (۳۰ ثانیه)...")
 
             try:
                 print(
-                    f"Attempting to find posts container with XPATH: {USER_PROVIDED_POSTS_CONTAINER_XPATH} (after manual intervention and delay)...")
+                    f"تلاش برای یافتن کانتینر پست‌ها با XPATH: {USER_PROVIDED_POSTS_CONTAINER_XPATH} (پس از دخالت دستی و تاخیر)...")
                 posts_container_element = WebDriverWait(driver, 30).until(
                     EC.presence_of_element_located((By.XPATH, USER_PROVIDED_POSTS_CONTAINER_XPATH))
                 )
-                print("Posts container found after manual intervention.")
+                print("کانتینر پست‌ها پس از دخالت دستی پیدا شد.")
 
                 hrefs_from_js_manual = get_links_via_javascript(driver, posts_container_element)
-                print(f"Raw links found by JS (after manual intervention): {hrefs_from_js_manual}")
+                # print(f"لینک‌های خام یافت شده توسط JS (پس از دخالت دستی): {hrefs_from_js_manual}")
 
                 newly_found_after_manual = 0
                 if hrefs_from_js_manual:
@@ -157,40 +160,29 @@ def get_post_links_from_profile(profile_url, output_file, driver_path, wait_time
 
                     if newly_found_after_manual > 0:
                         print(
-                            f"After manual intervention, {newly_found_after_manual} new valid links (with JS and new filter) added from container. Current total: {len(post_links_found)}")
+                            f"پس از دخالت دستی، {newly_found_after_manual} لینک جدید معتبر از داخل کانتینر اضافه شد. مجموع فعلی: {len(post_links_found)}")
                     elif post_links_found:
-                        print(
-                            f"After manual intervention, no new valid links added. Current total: {len(post_links_found)}")
+                        print(f"پس از دخالت دستی، لینک جدید معتبری اضافه نشد. مجموع فعلی: {len(post_links_found)}")
                     else:
-                        print("Warning: Links were found via JS, but none were valid posts (with new filter).")
+                        print("هشدار: لینک‌هایی از طریق JS پیدا شدند اما هیچکدام پست معتبر نبودند.")
                 else:
-                    print("Serious warning: No href links found via JS within the identified container.")
-                    if posts_container_element:
-                        try:
-                            print("-" * 50); print(posts_container_element.get_attribute('innerHTML')[:2000]); print(
-                                "-" * 50)
-                        except:
-                            pass
+                    print("هشدار جدی: هیچ لینک href ای از طریق JS داخل کانتینر پیدا شده یافت نشد.")
 
             except TimeoutException:
                 print(
-                    f"Error: After 30 seconds wait and manual intervention, posts container with XPATH ({USER_PROVIDED_POSTS_CONTAINER_XPATH}) still not found.")
-                try:
-                    print("-" * 50); print(driver.page_source[:2000]); print("-" * 50)
-                except:
-                    pass
+                    f"خطا: پس از ۳۰ ثانیه انتظار و دخالت دستی، هنوز کانتینر پست‌ها با XPATH ({USER_PROVIDED_POSTS_CONTAINER_XPATH}) پیدا نشد.")
             except Exception as e_after_manual:
-                print(f"Unexpected error after manual intervention while searching for content: {e_after_manual}")
+                print(f"خطای غیرمنتظره پس از دخالت دستی هنگام جستجوی محتوا: {e_after_manual}")
 
-        print("Starting to scroll to load all posts...")
+        print("شروع اسکرول برای بارگذاری تمام پست‌ها...")
         last_height = driver.execute_script("return document.body.scrollHeight")
         consecutive_no_change_scrolls = 0
 
-        if not post_links_found: print("Warning: No links found before starting scroll.")
+        if not post_links_found: print("هشدار: هیچ لینکی قبل از شروع اسکرول پیدا نشد.")
 
         while True:
             if max_scrolls is not None and scroll_attempts >= max_scrolls:
-                print(f"Reached maximum number of scrolls ({max_scrolls}).");
+                print(f"به حداکثر تعداد اسکرول ({max_scrolls}) رسیدیم.");
                 break
 
             current_posts_container_in_scroll = None
@@ -203,9 +195,9 @@ def get_post_links_from_profile(profile_url, output_file, driver_path, wait_time
                 current_posts_container_in_scroll = driver.find_element(By.XPATH, USER_PROVIDED_POSTS_CONTAINER_XPATH)
                 hrefs_in_scroll = get_links_via_javascript(driver, current_posts_container_in_scroll)
             except NoSuchElementException:
-                print(f"Warning: On scroll {scroll_attempts}, the main posts container was no longer found.")
+                print(f"هشدار: در اسکرول {scroll_attempts}، کانتینر اصلی پست‌ها دیگر پیدا نشد.")
             except Exception as e_scroll_js:
-                print(f"Error extracting links with JS during scroll {scroll_attempts}: {e_scroll_js}")
+                print(f"خطا در استخراج لینک با JS در حین اسکرول {scroll_attempts}: {e_scroll_js}")
 
             new_links_added_this_scroll = 0
             for href in hrefs_in_scroll:
@@ -218,39 +210,53 @@ def get_post_links_from_profile(profile_url, output_file, driver_path, wait_time
 
             if new_links_added_this_scroll > 0:
                 print(
-                    f"Scroll {scroll_attempts}: {new_links_added_this_scroll} new valid links (with JS and new filter) added. Total: {len(post_links_found)}")
+                    f"اسکرول {scroll_attempts}: {new_links_added_this_scroll} لینک جدید معتبر اضافه شد. مجموع: {len(post_links_found)}")
 
             new_height = driver.execute_script("return document.body.scrollHeight")
             if new_height == last_height:
                 consecutive_no_change_scrolls += 1
                 if consecutive_no_change_scrolls >= 3:
-                    print(
-                        "Page height has not changed for several consecutive scrolls. Assuming end of page has been reached.");
+                    print("ارتفاع صفحه برای چندین بار متوالی تغییر نکرد. به نظر می‌رسد به انتهای صفحه رسیده‌ایم.");
                     break
             else:
                 consecutive_no_change_scrolls = 0
             last_height = new_height
 
-        print(f"\nFound a total of {len(post_links_found)} unique post links.")
+        print(f"\nمجموعا {len(post_links_found)} لینک پست منحصر به فرد پیدا شد.")
 
         if post_links_found:
-            with open(output_file, 'w', encoding='utf-8') as f:
+            with open(output_file_path, 'w', encoding='utf-8') as f:
                 for link in sorted(list(post_links_found)): f.write(link + "\n")
-            print(f"Links successfully saved to file: '{output_file}'")
+            print(f"لینک‌ها با موفقیت در فایل '{output_file_path}' ذخیره شدند.")
         else:
-            print("No post links were ultimately found.")
+            print("هیچ لینک پستی در نهایت پیدا نشد.")
 
     except Exception as e:
-        print(f"An error occurred during execution: {e}");
+        print(f"خطایی در حین اجرا رخ داد: {e}");
         import traceback;
         traceback.print_exc()
     finally:
-        if driver is not None: print("Closing browser..."); driver.quit()
-        print("Process finished.")
+        if driver is not None: print("بستن مرورگر..."); driver.quit()
+        print("فرآیند تمام شد.")
 
 
 if __name__ == "__main__":
-    # دریافت آدرس صفحه اینستاگرام از کاربر
+    try:
+        from webdriver_manager.chrome import ChromeDriverManager
+    except ImportError:
+        print("کتابخانه webdriver-manager یافت نشد. در حال تلاش برای نصب...")
+        try:
+            import subprocess;
+            import sys
+
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "webdriver-manager"])
+            from webdriver_manager.chrome import ChromeDriverManager
+
+            print("webdriver-manager با موفقیت نصب شد.")
+        except Exception as e_install:
+            print(f"خطا در نصب خودکار webdriver-manager: {e_install}");
+            exit()
+
     profile_url_input = input(
         "لطفا آدرس کامل صفحه اینستاگرام را وارد کنید (مثال: https://www.instagram.com/username/): ")
 
@@ -258,10 +264,12 @@ if __name__ == "__main__":
         print("خطا: آدرس وارد شده معتبر به نظر نمی‌رسد. لطفا آدرس کامل را وارد کنید.")
     else:
         get_post_links_from_profile(
-            profile_url_input,  # استفاده از ورودی کاربر
+            profile_url_input,
             OUTPUT_FILE,
-            CHROME_DRIVER_PATH,
             WAIT_TIMEOUT,
             SCROLL_PAUSE_TIME,
             MAX_SCROLLS
         )
+
+    print("\nاجرای اسکریپت به پایان رسید.")
+    input("برای بستن این پنجره، کلیدی را فشار دهید...")
